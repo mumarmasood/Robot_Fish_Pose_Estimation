@@ -1,40 +1,127 @@
-# 2D Pose Estimation for Robot Fish
+# Robotic Fish Tracking and Testing System
 
-This project is about estimating the 2D pose of a robot fish. The pose is defined by the position (x, y) and orientation (theta) of the fish.
+This system is designed for real-time tracking and monitoring of a robotic fish's movement and orientation. It features a user interface for initiating and controlling the tracking process, visualizing data, and handling mission control.
 
 ## Features
 
-- Real-time video stream processing to track the fish.
-- Pose estimation using computer vision techniques.
-- Display of the current fish position and orientation.
+- Real-time video streaming for monitoring robotic fish.
+- Manual control adjustment for `tu`, `tail_speed`, and `tail_angle`.
+- Tracking of the robotic fish's X, Y coordinates and orientation angle.
+- Visualization of the fish's trajectory in a 2D plot.
+- Mission control with start and stop functionality.
+- Data collection and export to CSV format for analysis.
 
-## How to Run
 
-1. Ensure you have the required dependencies installed. List of the dependencies is as follows
-- Python 3.6 or higher
-- Install NumPy: `pip install numpy`
-- Install Matplotlib: `pip install matplotlib`
-2. Run the script `2D_Pose_Estimation_v1.py`.
+
+## Usage
+
+This application is designed to run on Windows environments. Follow the steps below to set up and start the system:
+
+1. **Install Python**: Ensure Python 3.x is installed on your system. You can download it from [python.org](https://www.python.org/downloads/).
+
+2. **Install Dependencies**: Open the Command Prompt (cmd) and navigate to the project's directory. Install the required Python packages by running:
+
+    ```bash
+    pip install opencv-python numpy matplotlib pillow requests
+    ```
+
+3. **Start the Application**: In the Command Prompt, navigate to the directory containing the script (`robotic_fish_tracking.py`). Run the script with the following command:
+
+    ```bash
+    python robotic_fish_tracking.py
+    ```
+
+    This will launch the graphical user interface for the robotic fish tracking system.
+
+4. **Configure and Control**: Use the GUI to enter the robotic fish's IP address, adjust control parameters (thrust, tail speed, and tail angle), and manage the tracking and data collection.
+
+For any issues during installation or execution, please refer to the Troubleshooting section or submit an issue on GitHub.
+
 
 ## Code Structure
 
-- `video_stream()`: This function captures the video stream and processes each frame to track the fish.
-- `update_fish_position()`: This function updates the global variables `fish_x`, `fish_y`, and `fish_theta` with the current position and orientation of the fish.
+The robotic fish tracking and testing system is structured as follows to ensure modularity, ease of maintenance, and scalability:
 
-## Notes
+- `robotic_fish_tracking.py`: The main script that initializes the application, sets up the GUI, and starts the video stream and tracking processes.
+  
+- **GUI Components**:
+  - `control_root_frame`: Contains control elements for adjusting the robotic fish's motion parameters and initiating tests.
+  - `video_root_frame`: Displays the live video feed from the robotic fish's environment.
+  - `plot_frame`: Visualizes the robotic fish's trajectory and other relevant data in real-time.
 
-- The fish position and orientation are displayed in the console.
-- The position and orientation are also stored in global variables `fish_x`, `fish_y`, and `fish_theta`.
+- **Networking**:
+  - `send_data()`: Handles the communication with the robotic fish by sending control commands through HTTP requests.
 
-## Future Work
+- **Computer Vision**:
+  - `open_cv_window()`: Opens a new window for selecting the robotic fish before tracking.
+  - `click_event()`: Processes mouse events for selecting the region of interest in the video feed.
+  - `video_stream()`: Continuously captures frames from the video feed, applies the tracking algorithm, and updates the GUI.
 
-- Improve the accuracy of the pose estimation.
-- Add more features such as tracking multiple fish simultaneously.
+- **Data Handling**:
+  - `update_plot()`: Updates the data visualization based on the tracking information.
+  - `clear_plot()`: Clears the current data visualization and resets data collection.
+  - `save_data_to_csv()`: Saves the collected tracking data to a CSV file for further analysis.
+
+- **Utility Functions**:
+  - Parameter adjustment functions such as `increase_tu()`, `decrease_tu()`, `increase_speed()`, `decrease_speed()`, `increase_angle()`, and `decrease_angle()` allow for dynamic control of the robotic fish's movement parameters.
+  - `on_closing()`: Ensures proper shutdown of the application, including releasing hardware resources and saving data.
+
+### Directory Structure
+
+The project is organized into the following directory structure for clarity and ease of access:
+Robot_Fish_Tracking/
+│
+├── robotic_fish_tracking.py - Main application script.
+│
+├── README.md - Project documentation and setup instructions.
+│
+└── requirements.txt - List of Python package dependencies.
+
+
+This structure is designed to keep the application straightforward and focused, with potential for further expansion as needed (e.g., adding modules for different tracking algorithms or supporting additional robotic models).
+
+## Expanding the Codebase
+
+To add new features or modify existing functionality:
+- Introduce new modules in separate files to maintain modularity.
+- Update the GUI layout in `robotic_fish_tracking.py` as needed to incorporate additional controls or display components.
+- Ensure new dependencies are added to `requirements.txt` for consistent setup across environments.
+
+## Controls
+
+- **IP Address Entry**: Enter the IP address of the robotic fish.
+- **TU Controls**: Adjust the thrust value with '+' and '-' buttons.
+- **Tail Speed Controls**: Adjust the tail speed for movement.
+- **Tail Angle Controls**: Adjust the tail angle for steering.
+- **Start/Stop Test**: Begin or end the testing sequence.
+- **Clear Plot & Data**: Clear the current plot and data records.
+
+## Data Collection
+
+The tracking data is saved in CSV format with the following columns:
+
+- Timestamp (relative to the start of the test)
+- X Position (meters)
+- Y Position (meters)
+- Orientation (degrees)
 
 ## Contributing
 
-Please feel free to contribute to this project. Any improvements or bug fixes are welcome.
+We highly value contributions from the members of the Bio-Inspired Robotics and Control Lab. If you are outside of our lab and interested in contributing, collaboration, or using our project, please first contact us for permission.
+
+Before contributing, please ensure you follow the guidelines outlined in `CONTRIBUTING.md`. These guidelines will provide you with the necessary steps to make your contributions as seamless as possible and ensure that our project maintains its integrity and standards.
+
+For lab members and those who have been granted permission:
+
+- Fork the repository.
+- Create your feature branch (`git checkout -b feature/AmazingFeature`).
+- Commit your changes (`git commit -am 'Add some AmazingFeature'`).
+- Push to the branch (`git push origin feature/AmazingFeature`).
+- Open a Pull Request.
+
+For detailed instructions and our code of conduct, refer to `CONTRIBUTING.md`.
 
 ## License
 
-This project is licensed under the MIT License. See the LICENSE file for details.
+This project is licensed under the MIT License - see the `LICENSE.md` file for details.
+
