@@ -70,11 +70,11 @@ The robotic fish tracking and testing system is structured as follows to ensure 
 
 The project is organized into the following directory structure for clarity and ease of access:
 Robot_Fish_Tracking/
-│
+│//
 ├── robotic_fish_tracking.py - Main application script.
-│
+│//
 ├── README.md                 - Project documentation and setup instructions.
-│
+│//
 └── requirements.txt          - List of Python package dependencies.
 
 
