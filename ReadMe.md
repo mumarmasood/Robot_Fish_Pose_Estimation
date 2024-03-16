@@ -73,9 +73,9 @@ Robot_Fish_Tracking/
 │
 ├── robotic_fish_tracking.py - Main application script.
 │
-├── README.md - Project documentation and setup instructions.
+├── README.md                 - Project documentation and setup instructions.
 │
-└── requirements.txt - List of Python package dependencies.
+└── requirements.txt          - List of Python package dependencies.
 
 
 This structure is designed to keep the application straightforward and focused, with potential for further expansion as needed (e.g., adding modules for different tracking algorithms or supporting additional robotic models).
