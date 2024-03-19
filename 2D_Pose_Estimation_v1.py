@@ -45,21 +45,10 @@ RETRY_DELAY = 1  # seconds
 RETRY_INTERVAL = 1000  # 1 second in milliseconds
 FETCH_INTERVAL = 2000  # 1 second in milliseconds
 
-CAMERASOURCE = 0  # 0 for built-in webcam, 1 for external webcam
-RESIZE_SCALE = 1  # SCALE FACTOR FOR DISPLAYING VIDEO FEED
+CAMERASOURCE = 2  # 0 for built-in webcam, 1 for external webcam
+RESIZE_SCALE = 0.3  # SCALE FACTOR FOR DISPLAYING VIDEO FEED
 
-while True:
-    try:
-        cap = cv2.VideoCapture(CAMERASOURCE)
-        if not cap.isOpened():
-            raise ValueError("Unable to open video source")
-        break
-    except Exception as e:
-        result = messagebox.askretrycancel("Error", str(e))
-        if result:
-            continue
-        else:
-            exit(0)
+
 
 fish_attributes = None
 initBB = None
@@ -68,28 +57,19 @@ roi_start = (0, 0)
 roi_end = (0, 0)
 mission_start_flag = False
 start_time = time.time()
+video_writer_handle = None
 
 
 
 #Posiiton and orientation data
 tracking_data = []  # Create an empty list outside of the loop
 
-# FRAME_WIDTH = 1920  # in pixels
-# FRAME_HEIGHT = 1080  # in pixels
+FRAME_WIDTH = 1920  # in pixels
+FRAME_HEIGHT = 1080  # in pixels
 POOL_WIDTH = 10  # in meters
 POOL_HEIGHT = 5  # in meters
 
-CO2_DATA = 6
-
-ret, frame = cap.read()
-if ret:
-    # Get the dimensions of the frame
-    FRAME_HEIGHT, FRAME_WIDTH, channels = frame.shape
-    print(f"Frame dimensions: {FRAME_WIDTH}x{FRAME_HEIGHT}")
-
-X_RATIO = POOL_WIDTH / FRAME_WIDTH
-Y_RATIO = POOL_HEIGHT / FRAME_HEIGHT
-
+CO2_DATA = 600  # in ppm
 
 # Function to send data to ESP32
 def send_data():
@@ -121,7 +101,7 @@ def toggle_test():
 
 # Function to start the test
 def start_test():
-    global start_time, end_time, mission_start_flag, test_tail_angle, test_tail_speed
+    global start_time, start_date_time, end_time, mission_start_flag, test_tail_angle, test_tail_speed, video_writer_handle
     
     tail_speed = tail_speed_var.get()
     tu = depth_rate_var.get()
@@ -133,13 +113,25 @@ def start_test():
     send_data()
     mission_start_flag = True
     start_time = time.time()
+    start_date_time = datetime.now()
     clear_plot()
+    video_writer_handle = None
+    # initilize saving video if the checkbox is checked
+    if save_video_var.get():
+    
+        date_time_str = start_date_time.strftime("%Y%m%d_%H%M%S")
+        # Combine with base name
+        filename = f"{save_video_path_var.get()}/Fish_Video_{date_time_str}.avi"
+        # Define the codec and create VideoWriter object
+        fourcc = cv2.VideoWriter_fourcc(*'XVID')
+        video_writer_handle = cv2.VideoWriter(filename, fourcc, 20.0, (FRAME_WIDTH, FRAME_HEIGHT))
+        print("Video will be saved to:", filename)
 
 
 # Function to stop the test
 def stop_test():
     # Global variables that will be modified in this function
-    global start_time, end_time, tracking_data, mission_start_flag 
+    global start_time, end_time, tracking_data, mission_start_flag, video_writer_handle
     end_time = time.time()  # Record the end time of the test
     tail_speed = 0  # Reset tail speed
     tu = 0  # Reset tu
@@ -149,12 +141,17 @@ def stop_test():
     mission_start_flag = False  # Indicate that the mission has ended
     save_data_to_csv("2D_Pose_Data", tracking_data)  # Save the tracking data to a CSV file
 
+    if video_writer_handle is not None:
+        video_writer_handle.release()  # Release the video writer handle
+        video_writer_handle = None  # Reset the video writer handle
+
+
 
 fish_color = None
 selected_fish_position = None
 
 def open_cv_window():
-    global selected_fish_position
+    global selected_fish_position, cap
     selected_fish_position = False
     cv2.namedWindow('Tracking')
     cv2.setMouseCallback('Tracking', click_event)
@@ -194,15 +191,23 @@ def click_event(event, x, y, flags, params):
         roi_end = (x, y)
 
 
+
 def video_stream():
-    global frame, cap, fish_attributes, dragging, tracker, tracking_data, ax, canvas, start_time, mission_start_flag, fish_x_meters, fish_y_meters, fish_theta
+    global frame, cap, fish_attributes, dragging, tracker, tracking_data, ax, canvas, start_time, mission_start_flag, fish_x_meters, fish_y_meters, fish_theta, video_writer_handle
+
     if cap is None:
-        cap = cv2.VideoCapture(CAMERASOURCE)  # Open source camera
+        cap = _init_camera(CAMERASOURCE)
+        # Set the camera resolution
+        cap.set(cv2.CAP_PROP_FRAME_WIDTH, FRAME_WIDTH)
+        cap.set(cv2.CAP_PROP_FRAME_HEIGHT, FRAME_HEIGHT)
+
+
     ret, frame = cap.read()
-    if not ret:
-        print("Error: Couldn't read frame from the camera.")
-        cap.release()
-        return
+
+
+
+    X_RATIO = POOL_WIDTH / FRAME_WIDTH
+    Y_RATIO = POOL_HEIGHT / FRAME_HEIGHT
     
     if dragging:
         cv2.rectangle(frame, roi_start, roi_end, (255, 0, 0), 2)
@@ -222,7 +227,7 @@ def video_stream():
             blurred = cv2.GaussianBlur(gray, (5, 5), 0)
 
             # Perform edge detection
-            edges = cv2.Canny(blurred, 50, 150, apertureSize=3)
+            edges = cv2.Canny(blurred, 50, 100, apertureSize=3)
 
             # Perform line detection
             lines = cv2.HoughLinesP(edges, 1, np.pi/180, threshold=20, minLineLength=5, maxLineGap=20)
@@ -230,16 +235,16 @@ def video_stream():
                 for line in lines[0]:
                     x1, y1, x2, y2 = line
                     cv2.line(cropped_frame, (x1, y1), (x2, y2), (0, 0, 150), 2)
-                    fish_theta = np.arctan2(y2 - y1, x2 - x1) * 180 / np.pi
+                    fish_theta = - np.arctan2(y2 - y1, x2 - x1) * 180 / np.pi
 
                     # Calculate the middle point of the rectangle
                     fish_x = x + w/2
                     fish_y = y + h/2
-                    
+
+                    fish_x_meters = fish_x * X_RATIO
+                    fish_y_meters = (FRAME_HEIGHT - fish_y) * Y_RATIO  # Subtracting from FRAME_HEIGHT to set origin at bottom left                    
                     # print("Orientation: {:.2f} degrees".format(theta))
                     if mission_start_flag:
-                        fish_x_meters = fish_x * X_RATIO
-                        fish_y_meters = (FRAME_HEIGHT - fish_y) * Y_RATIO  # Subtracting from FRAME_HEIGHT to set origin at bottom left
                         tracking_data.append((time.time()-start_time, fish_x_meters, fish_y_meters, fish_theta))
                         update_plot(tracking_data, ax, canvas)
             else:
@@ -258,7 +263,9 @@ def video_stream():
     # Update the display
     
 
-    # ...
+    # saved video if the checkbox is checked and mission is running
+    if video_writer_handle is not None:
+        video_writer_handle.write(frame)
 
     # Update the display
     scaled_frame = cv2.resize(frame, None, fx=RESIZE_SCALE, fy=RESIZE_SCALE)
@@ -267,7 +274,23 @@ def video_stream():
     imgtk = ImageTk.PhotoImage(image=img)
     image_panel.imgtk = imgtk  # Reference to avoid garbage collection
     image_panel.config(image=imgtk)
-    root.after(10, video_stream)  # Schedule the function to run again after 10ms
+    root.after(10, video_stream) 
+
+def _init_camera(source):
+    
+    while True:
+        try:
+            cap = cv2.VideoCapture(source)
+            if not cap.isOpened():
+                raise ValueError("Unable to open video source or could not read frame.")
+            break
+        except Exception as e:
+            result = messagebox.askretrycancel("Error", str(e))
+            if result:
+                continue
+            else:
+                exit(0) # Schedule the function to run again after 10ms
+    return cap
 
 cap = None
 
@@ -341,12 +364,11 @@ def clear_plot():
         canvas.draw()
 
 def save_data_to_csv(base_name, _tracking_data):
-    global test_tail_angle, test_tail_speed
-        # Get current date and time
-    now = datetime.now()
-    date_time_str = now.strftime("%Y%m%d_%H%M%S")
+    global test_tail_angle, test_tail_speed, start_date_time
+
+    date_time_str = start_date_time.strftime("%Y%m%d_%H%M%S")
     # Combine with base name
-    filename =  f"{base_name}_{date_time_str}_angle_{test_tail_angle}_speed_{test_tail_speed}.csv"
+    filename =  f"Data/{base_name}_{date_time_str}_angle_{test_tail_angle}_speed_{test_tail_speed}.csv"
     with open(filename, 'w', newline='') as file:
         writer = csv.writer(file)
         writer.writerow(["Timestamp", "x", "y","theta"])
@@ -362,8 +384,9 @@ def update_position_label():
     root.after(100, update_position_label)
 
 
+
 def on_closing():
-    global tu, tail_speed, tail_angle, should_run
+    global tu, tail_speed, tail_angle, should_run 
     tu = 0.02
     tail_speed = 0
     tail_angle = 0
@@ -482,6 +505,8 @@ video_frame.pack(pady=10)
 image_panel = ttk.Label(video_root_frame)
 image_panel.pack(pady=10)
 
+
+
 fig = Figure()
 ax = fig.add_subplot(111)
 ax.set_xlabel('X (meters)')
@@ -501,7 +526,26 @@ image_panel_small.pack(pady=10)
 
 
 open_cv_button = ttk.Button(video_root_frame, text="Select Fish", command=open_cv_window)
-open_cv_button.pack(pady=10)
+open_cv_button.pack(side=tk.LEFT, padx=10, pady=10)
+
+# Save video checkbox
+save_video_var = tk.BooleanVar()
+save_video_checkbox = ttk.Checkbutton(video_root_frame, text="Save Video", variable=save_video_var, onvalue=True, offvalue=False)
+save_video_checkbox.pack(side=tk.LEFT, padx=10, pady=10)
+
+# path to save the video
+save_video_path_var = tk.StringVar(value=r"C:\Users\mumar\OneDrive - University Of Houston\UoH\Dr Chen\Robot Fish\Program\Python\Robot_Fish_Pose_Estimation")
+save_video_path_entry = ttk.Entry(video_root_frame, textvariable=save_video_path_var, width=30)
+save_video_path_entry.pack(side=tk.LEFT, padx=10, pady=10)
+
+# Browse button to select the path
+def browse_path():
+    path = tk.filedialog.askdirectory()
+    save_video_path_var.set(path)
+
+browse_button = ttk.Button(video_root_frame, text="Browse", command=browse_path)
+browse_button.pack(side=tk.LEFT, padx=10, pady=10)
+
 
 clear_plot_button = ttk.Button(plot_frame, text="Clear Plot & Data", command=clear_plot)
 clear_plot_button.pack(pady=10)
@@ -511,7 +555,7 @@ clear_plot_button.pack(pady=10)
 
 
 if __name__ == "__main__":
-    update_position_label()
+    root.after(10, update_position_label)
     # stop_thread = fetch_co2_data(ip_var, root, set_error_label_empty, set_error_label_error)
     # cv2.namedWindow('Tracking')
     # cv2.setMouseCallback('Tracking', click_event)

@@ -68,3 +68,44 @@ def get_gaze_ratio(eye_points, facial_landmarks):
         gaze_ratio = 5
     else:
         gaze_ratio = left_side_white / right_side_white
+
+    return gaze_ratio
+
+# Video capture
+cap = cv2.VideoCapture(0)
+
+while True:
+    _, frame = cap.read()
+    # Convert image into grayscale
+    gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+
+    # Detect faces
+    faces = detector(gray)
+    for face in faces:
+        x, y = face.left(), face.top()
+        x1, y1 = face.right(), face.bottom()
+        # cv2.rectangle(frame, (x, y), (x1, y1), (0, 255, 0), 2)
+
+        # Get the landmarks
+        landmarks = predictor(gray, face)
+
+        # Detect blinking
+        left_eye_ratio = get_blinking_ratio([36, 37, 38, 39, 40, 41], landmarks)
+        right_eye_ratio = get_blinking_ratio([42, 43, 44, 45, 46, 47], landmarks)
+        blinking_ratio = (left_eye_ratio + right_eye_ratio) / 2
+
+        if blinking_ratio > 5.7:
+            cv2.putText(frame, "BLINKING", (50, 150), font, 7, (255, 0, 0))
+
+        # Gaze detection
+        gaze_ratio_left_eye = get_gaze_ratio([36, 37, 38, 39, 40, 41], landmarks)
+        gaze_ratio_right_eye = get_gaze_ratio([42, 43, 44, 45, 46, 47], landmarks)
+        gaze_ratio = (gaze_ratio_right_eye + gaze_ratio_left_eye) / 2
+        cv2.putText(frame, str(gaze_ratio), (50, 100), font, 2, (0, 0, 255), 3)
+
+    # Show the image
+    cv2.imshow("Frame", frame)
+
+    key = cv2.waitKey(1)
+    if key == 27:
+        break
