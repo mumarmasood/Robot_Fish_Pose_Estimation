@@ -11,6 +11,6 @@ cap = cv2.VideoCapture(camera_source)
 if not cap.isOpened():
     print("Cannot open webcam")
     exit()
-
+  
 # read the first frame
 ret, frame = cap.read()

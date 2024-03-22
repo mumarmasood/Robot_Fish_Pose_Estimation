@@ -45,8 +45,8 @@ RETRY_DELAY = 1  # seconds
 RETRY_INTERVAL = 1000  # 1 second in milliseconds
 FETCH_INTERVAL = 2000  # 1 second in milliseconds
 
-CAMERASOURCE = 2  # 0 for built-in webcam, 1 for external webcam
-RESIZE_SCALE = 0.3  # SCALE FACTOR FOR DISPLAYING VIDEO FEED
+CAMERASOURCE = 1  # 0 for built-in webcam, 1 for external webcam
+RESIZE_SCALE = 0.5  # SCALE FACTOR FOR DISPLAYING VIDEO FEED
 
 
 
@@ -64,8 +64,8 @@ video_writer_handle = None
 #Posiiton and orientation data
 tracking_data = []  # Create an empty list outside of the loop
 
-FRAME_WIDTH = 1920  # in pixels
-FRAME_HEIGHT = 1080  # in pixels
+FRAME_WIDTH = 1280  # in pixels
+FRAME_HEIGHT = 720  # in pixels
 POOL_WIDTH = 10  # in meters
 POOL_HEIGHT = 5  # in meters
 
@@ -101,7 +101,7 @@ def toggle_test():
 
 # Function to start the test
 def start_test():
-    global start_time, start_date_time, end_time, mission_start_flag, test_tail_angle, test_tail_speed, video_writer_handle
+    global start_time, start_date_time, end_time, mission_start_flag, test_tail_angle, test_tail_speed, video_writer_handle, tail_angle, tail_speed, tu
     
     tail_speed = tail_speed_var.get()
     tu = depth_rate_var.get()
@@ -110,11 +110,12 @@ def start_test():
     test_tail_angle = tail_angle
     test_tail_speed = tail_speed
 
-    send_data()
+    
     mission_start_flag = True
     start_time = time.time()
     start_date_time = datetime.now()
     clear_plot()
+    send_data()
     video_writer_handle = None
     # initilize saving video if the checkbox is checked
     if save_video_var.get():
@@ -131,7 +132,7 @@ def start_test():
 # Function to stop the test
 def stop_test():
     # Global variables that will be modified in this function
-    global start_time, end_time, tracking_data, mission_start_flag, video_writer_handle
+    global start_time, end_time, tracking_data, mission_start_flag, video_writer_handle, tail_angle, tail_speed, tu
     end_time = time.time()  # Record the end time of the test
     tail_speed = 0  # Reset tail speed
     tu = 0  # Reset tu
@@ -280,7 +281,7 @@ def _init_camera(source):
     
     while True:
         try:
-            cap = cv2.VideoCapture(source)
+            cap = cv2.VideoCapture(source, cv2.CAP_DSHOW)
             if not cap.isOpened():
                 raise ValueError("Unable to open video source or could not read frame.")
             break
@@ -427,7 +428,7 @@ plot_frame.grid(row=0, column=2, sticky="nsew", padx=5, pady=5)
 ip_frame = ttk.Frame(control_root_frame, padding="10")
 ip_frame.pack(pady=5)
 ttk.Label(ip_frame, text="Robot Fish IP Address:").pack(pady=5)
-ip_var = tk.StringVar(value="172.25.4.161")
+ip_var = tk.StringVar(value="192.168.30.2")
 ip_entry = ttk.Entry(ip_frame, textvariable=ip_var)
 ip_entry.pack(pady=5)
 
