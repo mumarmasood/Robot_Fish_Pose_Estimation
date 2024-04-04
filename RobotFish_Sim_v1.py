@@ -10,7 +10,8 @@ import matplotlib.pyplot as plt
 from matplotlib.patches import Ellipse
 from matplotlib.animation import FuncAnimation
 from scipy.integrate import solve_ivp
-
+import csv
+import datetime
 
 
 
@@ -34,12 +35,13 @@ class Fish:
         self.alpha1 = alpha1
         self.alpha2 = alpha2
 
-    def set_shape(self, l0=0.042, l1=0.058, l2=0.022, d0=0.04, d=0.08):
+    def set_shape(self, l0=0.042, l1=0.058, l2=0.022, d0=0.04, d=0.08, L=0.04):
         self.l0 = l0
         self.l1 = l1
         self.l2 = l2
         self.d0 = d0
         self.d = d
+        self.L = L
 
     def plot(self, ax, scale = 1):
         # Plotting the pool
@@ -100,8 +102,6 @@ class Fish:
         xd_ddot = -self.l1 * A_1**2 * omega**2 * np.cos(A_1 * np.sin(omega * t)) * np.cos(omega * t)**2 + self.l1 * A_1 * omega**2 * np.sin(A_1 * np.sin(omega * t)) * np.sin(omega * t) - self.l2 * A_2**2 * omega**2 * np.sin(omega * t)**2 * np.cos(A_2 * np.cos(omega * t)) + self.l2 * A_2 * omega**2 * np.sin(A_2 * np.cos(omega * t)) * np.cos(omega * t)
         yd_ddot = -self.l1 * A_1**2 * omega**2 * np.sin(A_1 * np.sin(omega * t)) * np.cos(omega * t)**2 - self.l1 * A_1 * omega**2 * np.cos(A_1 * np.sin(omega * t)) * np.sin(omega * t) - self.l2 * A_2**2 * omega**2 * np.cos(omega * t)**2 * np.cos(A_2 * np.cos(omega * t)) - self.l2 * A_2 * omega**2 * np.cos(A_2 * np.cos(omega * t)) * np.sin(omega * t)
 
-
-
         V_n = - xd_dot*np.sin(self.alpha2) + yd_dot*np.cos(self.alpha2) + V_c*np.sin(self.alpha2)
         V_m = xd_dot*np.cos(self.alpha2) + yd_dot*np.sin(self.alpha2) - V_c*np.cos(self.alpha2)
 
@@ -110,14 +110,81 @@ class Fish:
         n_hat = np.array([-np.sin(self.alpha2), np.cos(self.alpha2)])
 
         m_i = 0.5 * np.pi * 1000 * 0.01 * 0.01
+        F_rf_d = -0.5 * m_i * V_n**2 * m_hat + m_i * V_n * V_m * n_hat - m_i * self.L * xd_ddot * n_hat
 
-
-
+        del_transform = np.array([[np.cos(self.delta), -np.sin(self.delta)], 
+                          [np.sin(self.delta), np.cos(self.delta)]])
         
+        F = np.dot(del_transform, F_rf_d) # in Wenyu's paper defined as T_x
+        F_x = F[0]
+        F_y = F[1]
+        F_theta = np.array([[self.d0 + (self.l0 + self.l1 + self.l2) * np.cos(self.delta)], 
+                [(self.l0 + self.l1 + self.l2) * np.sin(self.delta)]]) * F
+        
+        F_theta_mag = np.sqrt(np.sum(F_theta**2, axis=0))
+        
+        F = np.array([F_x, F_y, F_theta_mag])
+             
+
+        data_logger(t, F)
+
+
+
+
 
 
 
         # self.plot(ax)
+
+
+# Initialization function for the animation
+def init():
+    roboticfish.plot(ax)
+
+    return []
+
+# Update function for the animation
+def update(frame):
+    # move to the right
+    roboticfish.move(1, 10*np.pi/180, frame*dt)
+    
+    # update the plot
+    
+    roboticfish.plot(ax, 28)
+    return []
+
+
+def data_logger(_t,_F): # function to update the data in the csv file and global variables
+    _Fx = _F[0]
+    _Fy = _F[1]
+    _Ft = _F[2]
+
+    Fx_logged.append(_Fx)
+    Fy_logged.append(_Fy)
+    Ft_logged.append(_Ft)
+    timestamps.append(_t)
+
+    # Update data for each line
+    line_fx.set_data(timestamps, Fx_logged)
+    line_fy.set_data(timestamps, Fy_logged)
+    line_ft.set_data(timestamps, Ft_logged)
+
+    # Adjust the plot range dynamically
+    ax_plots.relim()
+    ax_plots.autoscale_view(True,True,True)
+
+    # Draw the new data
+    fig_plots.canvas.draw()
+    fig_plots.canvas.flush_events()
+
+    # Filename with date time
+    filename = 'data_logger_' + program_start_time.strftime("%Y-%m-%d-%H-%M-%S") + '.csv'
+
+    # Append new data to the csv file
+    with open(filename, mode='a', newline='') as data_logger:
+        data_logger_writer = csv.writer(data_logger, delimiter=',', quotechar='"', quoting=csv.QUOTE_MINIMAL)
+        data_logger_writer.writerow([_t, _Fx, _Fy, _Ft])
+
 
 
 
@@ -148,9 +215,12 @@ _fish_alpha1 = 0.1 # radians angle between l0 and l1
 _fish_alpha2 = 0.2 # radians angle between l0 and l2
 
 
+Fx_logged = []
+Fy_logged = []
+Ft_logged = []
+timestamps = []
 
-
-
+program_start_time = datetime.datetime.now()
 
 
 # Setting up the figure and axis for the plot
@@ -163,6 +233,26 @@ ax.set_ylabel('Y-axis')
 
 
 
+# Initialize the plot only once, outside of the function
+fig_plots, ax_plots = plt.subplots()
+
+
+# Global lists to hold the logged data
+Fx_logged = []
+Fy_logged = []
+Ft_logged = []
+timestamps = []
+
+# Set up the plot style
+ax_plots.set_xlabel('Time (s)')
+ax_plots.set_ylabel('Force (N)')
+ax_plots.set_title('Force vs Time')
+line_fx, = ax_plots.plot(timestamps, Fx_logged, label='Fx')
+line_fy, = ax_plots.plot(timestamps, Fy_logged, label='Fy')
+line_ft, = ax_plots.plot(timestamps, Ft_logged, label='Ft')
+ax_plots.legend()
+
+plt.ion()  # Turn on interactive plotting
 
 # Creating the fish object
 roboticfish = Fish(_fish_x, _fish_y, _fish_psi, _fish_delta, _fish_alpha1, _fish_alpha2)
@@ -172,26 +262,6 @@ roboticfish.set_shape(_fish_l0, _fish_l1, _fish_l2, _fish_d0*1.5, 0.015)
 
 # Time step for the simulation
 dt = 0.1
-
-# Initialization function for the animation
-def init():
-    roboticfish.plot(ax)
-
-    return []
-
-# Update function for the animation
-def update(frame):
-    # move to the right
-    roboticfish.move(1, 10*np.pi/180, frame*dt)
-    
-    # update the plot
-    
-    roboticfish.plot(ax, 28)
-    return []
-
-    
-
-
 # Creating the animation
 
 anim = FuncAnimation(fig, update, init_func=init, frames=200, interval=50, blit=True)
