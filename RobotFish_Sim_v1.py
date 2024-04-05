@@ -16,32 +16,41 @@ import datetime
 
 
 class Fish:
-    def __init__(self, x, y, psi, delta, alpha1, alpha2):
+    def __init__(self, x, y, psi, delta, alpha1, alpha2, u = 0, v = 0, r = 0):
         self.x = x
         self.y = y
         self.psi = psi
         self.delta = delta
         self.alpha1 = alpha1
         self.alpha2 = alpha2
+        self.u = u
+        self.v = v
+        self.r = r
 
     def get_state(self):
-        return self.x, self.y, self.psi, self.delta, self.alpha1, self.alpha2
+        return self.x, self.y, self.psi, self.delta, self.alpha1, self.alpha2, self.u, self.v, self.r
 
-    def set_state(self, x, y, psi, delta, alpha1, alpha2):
+    def set_state(self, x, y, psi, delta, alpha1, alpha2, u, v, r):
         self.x = x
         self.y = y
         self.psi = psi
         self.delta = delta
         self.alpha1 = alpha1
         self.alpha2 = alpha2
+        self.u = u
+        self.v = v
+        self.r = r
 
-    def set_shape(self, l0=0.042, l1=0.058, l2=0.022, d0=0.04, d=0.08, L=0.04):
+
+    def set_shape(self, l0=0.042, l1=0.058, l2=0.022, d0=0.04, d=0.08, L=0.04, m = 0.9, I = 0.0047):
         self.l0 = l0
         self.l1 = l1
         self.l2 = l2
         self.d0 = d0
         self.d = d
         self.L = L
+        self.m = m
+        self.I = I
 
     def plot(self, ax, scale = 1):
         # Plotting the pool
@@ -84,6 +93,16 @@ class Fish:
         ax.add_line(fish_tail2)
 
     def move(self, omega, _del, t):
+
+        def ode_system(t, states):
+            u, v, r = states
+            states_dot = np.array([
+                (F_x + (self.m + k_22*self.m) * u * v - D_u * u)/(self.m + k_11 * self.m),
+                (F_y - (self.m + k_11*self.m) * u * r - D_v * v)/(self.m + k_22 * self.m),
+                (F_theta - (k_22 * self.m - k_11 * self.m) - D_r*r)/(self.I + k_55*self.I)
+            ])
+            return states_dot
+        
         self.delta = _del
         A_1 = 0.1
         A_2 = 0.1
@@ -124,13 +143,32 @@ class Fish:
         # append F_theta in the F array
         F = np.append(F, F_theta)
 
-        data_logger(t, F)
+        states = [self.u, self.v, self.r]
+        
+        ODE_sol = solve_ivp(ode_system, [0, t], states, t_eval=[t])
+        
+        states = ODE_sol.y[:,-1]
+
+        self.u = states[0]
+        self.v = states[1]
+        self.r = states[2]
+
+        x_dot = self.u*np.cos(self.psi) - self.v*np.sin(self.psi)
+        y_dot = self.u*np.sin(self.psi) + self.v*np.cos(self.psi)
+        psi_dot = self.r
+
+        self.x = self.x + x_dot*dt
+        self.y = self.y + y_dot*dt
+        self.psi = self.psi + psi_dot*dt
 
 
-        # self.plot(ax)
 
 
-def data_logger(_t,_F): # function to update the data in the csv file and global variables
+        data_logger(t, F, self.u)
+        
+
+
+def data_logger(_t,_F, u = 0, v = 0, r = 0): # function to update the data in the csv file and global variables
     _Fx = _F[0]
     _Fy = _F[1]
     _Ft = _F[2]
@@ -139,15 +177,24 @@ def data_logger(_t,_F): # function to update the data in the csv file and global
     Fy_logged.append(_Fy)
     Ft_logged.append(_Ft)
     timestamps.append(_t)
+    u_logged.append(u)
+    v_logged.append(v)
+    r_logged.append(r)
 
     # Update data for each line
     line_fx.set_data(timestamps, Fx_logged)
     line_fy.set_data(timestamps, Fy_logged)
     line_ft.set_data(timestamps, Ft_logged)
+    line_u.set_data(timestamps, u_logged)
+    line_v.set_data(timestamps, v_logged)
+    line_r.set_data(timestamps, r_logged)
 
     # Adjust the plot range dynamically
     ax_plots.relim()
     ax_plots.autoscale_view(True,True,True)
+
+    ax2_plots.relim()
+    ax2_plots.autoscale_view(True,True,True)
 
     # # Draw the new data
     fig_plots.canvas.draw()
@@ -159,7 +206,7 @@ def data_logger(_t,_F): # function to update the data in the csv file and global
     # Append new data to the csv file
     with open(filename, mode='a', newline='') as data_logger:
         data_logger_writer = csv.writer(data_logger, delimiter=',', quotechar='"', quoting=csv.QUOTE_MINIMAL)
-        data_logger_writer.writerow([_t, _Fx, _Fy, _Ft])
+        data_logger_writer.writerow([_t, _Fx, _Fy, _Ft, u, v, r])
 
 
 
@@ -179,7 +226,7 @@ _fish_l2 = 0.044 # meters
 _fish_L = 0.04 # meters
 _fish_d0 = 0.04 # meters
 _fish_d = 0.08 # meters
-_fish_m = 0.09 # kg
+_fish_m = 0.9 # kg
 _fish_I = 0.0047 # kg*m^2
 
 # initialize fish state variables
@@ -194,9 +241,41 @@ _fish_alpha2 = 0 # radians angle between l0 and l2
 Fx_logged = []
 Fy_logged = []
 Ft_logged = []
+u_logged = []
+v_logged = []
+r_logged = []
 timestamps = []
 
 program_start_time = datetime.datetime.now()
+
+# second order system parameters
+rho_w = 1025
+c_x = 0.39
+c_y = 2.2
+c_r = 0.0055
+V_c = 0.08
+s_y = 0.02
+s_x = 0.0025
+k_11 = 0.095
+k_22 = 0.83
+k_55 = 0.55
+k_F = 0.2
+
+D_v = 0.02
+D_u = 0.01
+D_r = 0.0001
+
+
+# initial condition
+v0 = 0
+u0 = 0
+r0 = 0
+x0 = 0
+y0 = 0
+psi0 = 0
+
+x0 = [u0, v0, r0]
+
 
 
 # Setting up the figure and axis for the plot
@@ -206,20 +285,31 @@ ax.set_ylim(0, _pool_width)
 ax.set_title('2D Robotic Fish Simulator - BRCL @ UH')
 ax.set_xlabel('X-axis')
 ax.set_ylabel('Y-axis')
+ax.set_aspect('equal')
+ax.grid(True)
 
 
 
 # Initialize the plot only once, outside of the function
 fig_plots, ax_plots = plt.subplots()
+ax2_plots = ax_plots.twinx()
 
 # Set up the plot style
 ax_plots.set_xlabel('Time (s)')
 ax_plots.set_ylabel('Force (N)')
 ax_plots.set_title('Force vs Time')
-line_fx, = ax_plots.plot(timestamps, Fx_logged, label='Fx')
-line_fy, = ax_plots.plot(timestamps, Fy_logged, label='Fy')
-line_ft, = ax_plots.plot(timestamps, Ft_logged, label='Ft')
+line_fx, = ax_plots.plot(timestamps, Fx_logged, label='Fx', color='red')
+line_fy, = ax_plots.plot(timestamps, Fy_logged, label='Fy', color='green')
+line_ft, = ax_plots.plot(timestamps, Ft_logged, label='Ft', color='blue')
+line_u, = ax_plots.plot(timestamps, u_logged, label='u', color='black')
+line_v, = ax2_plots.plot(timestamps, v_logged, label='v', color='orange')
+line_r, = ax2_plots.plot(timestamps, r_logged, label='r', color='purple')
+ax_plots.grid(True)
 ax_plots.legend()
+ax2_plots.legend()
+ax_plots.autoscale_view(True,True,True)
+# fit axis 2
+ax2_plots.relim()
 
 # plt.ion()  # Turn on interactive plotting
 
@@ -236,7 +326,7 @@ def init():
 # Update function for the animation
 def update(frame):
     # move to the right
-    roboticfish.move(1, 0*np.pi/180, frame*dt)
+    roboticfish.move(np.pi/2, 0*np.pi/180, (frame + 1)*dt)
     
     # update the plot
     
@@ -248,7 +338,7 @@ def update(frame):
 dt = 0.1
 # Creating the animation
 
-anim = FuncAnimation(fig, update, init_func=init, frames=100, interval=50, blit=True, repeat=False)
+anim = FuncAnimation(fig, update, init_func=init, frames=1000, interval=dt, blit=True, repeat=False)
 
 # To display the animation in a Jupyter notebook, use the following line:
 # from IPython.display import HTML
