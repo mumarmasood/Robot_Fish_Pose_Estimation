@@ -95,7 +95,7 @@ class Fish:
         xd = self.l1*np.cos(self.alpha1) + self.l2*np.cos(self.alpha2)
         yd = self.l1*np.sin(self.alpha1) + self.l2*np.sin(self.alpha2)
 
-        V_c = 0.1
+        V_c = 0
 
         xd_dot = -self.l1*np.sin(self.alpha1)*A_1*np.cos(omega*t)*omega - self.l2*np.sin(self.alpha2)*A_2*np.cos(omega*t + np.pi/2)*omega
         yd_dot = self.l1*np.cos(self.alpha1)*A_1*np.cos(omega*t)*omega + self.l2*np.cos(self.alpha2)*A_2*np.cos(omega*t + np.pi/2)*omega
@@ -118,40 +118,16 @@ class Fish:
         F = np.dot(del_transform, F_rf_d) # in Wenyu's paper defined as T_x
         F_x = F[0]
         F_y = F[1]
-        F_theta = np.array([[self.d0 + (self.l0 + self.l1 + self.l2) * np.cos(self.delta)], 
-                [(self.l0 + self.l1 + self.l2) * np.sin(self.delta)]]) * F
+
+        F_theta = (self.d0 + (self.l0 + self.l1 + self.l2) * np.cos(self.delta))*F_y - (self.l0 + self.l1 + self.l2) * np.sin(self.delta)*F_x
         
-        F_theta_mag = np.sqrt(np.sum(F_theta**2, axis=0))
-        
-        F = np.array([F_x, F_y, F_theta_mag])
-             
+        # append F_theta in the F array
+        F = np.append(F, F_theta)
 
         data_logger(t, F)
 
 
-
-
-
-
-
         # self.plot(ax)
-
-
-# Initialization function for the animation
-def init():
-    roboticfish.plot(ax)
-
-    return []
-
-# Update function for the animation
-def update(frame):
-    # move to the right
-    roboticfish.move(1, 10*np.pi/180, frame*dt)
-    
-    # update the plot
-    
-    roboticfish.plot(ax, 28)
-    return []
 
 
 def data_logger(_t,_F): # function to update the data in the csv file and global variables
@@ -173,12 +149,12 @@ def data_logger(_t,_F): # function to update the data in the csv file and global
     ax_plots.relim()
     ax_plots.autoscale_view(True,True,True)
 
-    # Draw the new data
+    # # Draw the new data
     fig_plots.canvas.draw()
-    fig_plots.canvas.flush_events()
+    # fig_plots.canvas.flush_events()
 
     # Filename with date time
-    filename = 'data_logger_' + program_start_time.strftime("%Y-%m-%d-%H-%M-%S") + '.csv'
+    filename = r'Sim_Data\data_logger_' + program_start_time.strftime("%Y%m%d%H%M%S") + '.csv'
 
     # Append new data to the csv file
     with open(filename, mode='a', newline='') as data_logger:
@@ -207,12 +183,12 @@ _fish_m = 0.09 # kg
 _fish_I = 0.0047 # kg*m^2
 
 # initialize fish state variables
-_fish_x = 6 # meters
+_fish_x = 2 # meters
 _fish_y = 2 # meters
 _fish_psi = 0 # radians anlge of fish wrt x-axis
-_fish_delta = -0.1 # radians angle of fish tail (l0) wrt fish body
-_fish_alpha1 = 0.1 # radians angle between l0 and l1
-_fish_alpha2 = 0.2 # radians angle between l0 and l2
+_fish_delta = 0 # radians angle of fish tail (l0) wrt fish body
+_fish_alpha1 = 0 # radians angle between l0 and l1
+_fish_alpha2 = 0 # radians angle between l0 and l2
 
 
 Fx_logged = []
@@ -236,13 +212,6 @@ ax.set_ylabel('Y-axis')
 # Initialize the plot only once, outside of the function
 fig_plots, ax_plots = plt.subplots()
 
-
-# Global lists to hold the logged data
-Fx_logged = []
-Fy_logged = []
-Ft_logged = []
-timestamps = []
-
 # Set up the plot style
 ax_plots.set_xlabel('Time (s)')
 ax_plots.set_ylabel('Force (N)')
@@ -252,19 +221,34 @@ line_fy, = ax_plots.plot(timestamps, Fy_logged, label='Fy')
 line_ft, = ax_plots.plot(timestamps, Ft_logged, label='Ft')
 ax_plots.legend()
 
-plt.ion()  # Turn on interactive plotting
+# plt.ion()  # Turn on interactive plotting
 
 # Creating the fish object
 roboticfish = Fish(_fish_x, _fish_y, _fish_psi, _fish_delta, _fish_alpha1, _fish_alpha2)
 roboticfish.set_shape(_fish_l0, _fish_l1, _fish_l2, _fish_d0*1.5, 0.015)
 
+# Initialization function for the animation
+def init():
+    roboticfish.plot(ax)
+
+    return []
+
+# Update function for the animation
+def update(frame):
+    # move to the right
+    roboticfish.move(1, 0*np.pi/180, frame*dt)
+    
+    # update the plot
+    
+    roboticfish.plot(ax, 10)
+    return []
 
 
 # Time step for the simulation
 dt = 0.1
 # Creating the animation
 
-anim = FuncAnimation(fig, update, init_func=init, frames=200, interval=50, blit=True)
+anim = FuncAnimation(fig, update, init_func=init, frames=100, interval=50, blit=True, repeat=False)
 
 # To display the animation in a Jupyter notebook, use the following line:
 # from IPython.display import HTML
