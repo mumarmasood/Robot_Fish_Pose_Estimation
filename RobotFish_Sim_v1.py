@@ -16,7 +16,7 @@ import datetime
 
 
 class Fish:
-    def __init__(self, x, y, psi, delta, alpha1, alpha2, u = 0, v = 0, r = 0):
+    def __init__(self, x, y, psi, delta, alpha1, alpha2, u = 0.0, v = 0, r = -0.01):
         self.x = x
         self.y = y
         self.psi = psi
@@ -97,9 +97,9 @@ class Fish:
         def ode_system(t, states):
             u, v, r = states
             states_dot = np.array([
-                (F_x + (self.m + k_22*self.m) * u * v - D_u * u)/(self.m + k_11 * self.m),
+                (F_x + (self.m + k_22*self.m) * v * r - D_u * u)/(self.m + k_11 * self.m),
                 (F_y - (self.m + k_11*self.m) * u * r - D_v * v)/(self.m + k_22 * self.m),
-                (F_theta - (k_22 * self.m - k_11 * self.m) - D_r*r)/(self.I + k_55*self.I)
+                (F_theta - (k_22 * self.m - k_11 * self.m) * v * u - D_r * r)/(self.I + k_55*self.I)
             ])
             return states_dot
         
@@ -107,29 +107,44 @@ class Fish:
         A_1 = 0.1
         A_2 = 0.1
     
-        self.alpha1 = A_1*np.sin(omega*t)
-        self.alpha2 = A_2*np.sin(omega*t + np.pi/2)
+        self.alpha1 = A_1*np.sin(omega*t)                       # omega is rad/sec
+        self.alpha2 = A_2*np.sin(omega*t + np.pi/2)             # omega is rad/sec
 
-        # quarter-chord point of the caudel fin in DSC frame origined at x1, y1 and oriented at angle psi + delta
-        xd = self.l1*np.cos(self.alpha1) + self.l2*np.cos(self.alpha2)
-        yd = self.l1*np.sin(self.alpha1) + self.l2*np.sin(self.alpha2)
+        alpha2_dot = A_2 * omega * np.cos(omega * t + np.pi / 2)  # The derivative of alpha2 with respect to time
+        alpha1_dot = A_1 * omega * np.cos(omega * t)  # The derivative of alpha1 with respect to time
 
-        V_c = 0
+        # quarter-chord point of the caudel fin in DSC frame
+        xd = self.l1*np.cos(self.alpha1) + self.l2*np.cos(self.alpha2)              # alpha1 and alpha2 are in radians
+        yd = self.l1*np.sin(self.alpha1) + self.l2*np.sin(self.alpha2)              # alpha1 and alpha2 are in radians
 
-        xd_dot = -self.l1*np.sin(self.alpha1)*A_1*np.cos(omega*t)*omega - self.l2*np.sin(self.alpha2)*A_2*np.cos(omega*t + np.pi/2)*omega
-        yd_dot = self.l1*np.cos(self.alpha1)*A_1*np.cos(omega*t)*omega + self.l2*np.cos(self.alpha2)*A_2*np.cos(omega*t + np.pi/2)*omega
-        xd_ddot = -self.l1 * A_1**2 * omega**2 * np.cos(A_1 * np.sin(omega * t)) * np.cos(omega * t)**2 + self.l1 * A_1 * omega**2 * np.sin(A_1 * np.sin(omega * t)) * np.sin(omega * t) - self.l2 * A_2**2 * omega**2 * np.sin(omega * t)**2 * np.cos(A_2 * np.cos(omega * t)) + self.l2 * A_2 * omega**2 * np.sin(A_2 * np.cos(omega * t)) * np.cos(omega * t)
-        yd_ddot = -self.l1 * A_1**2 * omega**2 * np.sin(A_1 * np.sin(omega * t)) * np.cos(omega * t)**2 - self.l1 * A_1 * omega**2 * np.cos(A_1 * np.sin(omega * t)) * np.sin(omega * t) - self.l2 * A_2**2 * omega**2 * np.cos(omega * t)**2 * np.cos(A_2 * np.cos(omega * t)) - self.l2 * A_2 * omega**2 * np.cos(A_2 * np.cos(omega * t)) * np.sin(omega * t)
+        xd_dot = -self.l1*np.sin(self.alpha1)*A_1*np.cos(omega*t)*omega - self.l2*np.sin(self.alpha2)*A_2*np.cos(omega*t + np.pi/2)*omega   # xd_dot = d(xd)/dt in m/s
+        yd_dot = self.l1*np.cos(self.alpha1)*A_1*np.cos(omega*t)*omega + self.l2*np.cos(self.alpha2)*A_2*np.cos(omega*t + np.pi/2)*omega    # yd_dot = d(yd)/dt in m/s
+
+        xd_ddot =   - self.l1 * A_1**2 * omega**2 * np.cos(A_1 * np.sin(omega * t)) * np.cos(omega * t)**2 \
+                    + self.l1 * A_1 * omega**2 * np.sin(A_1 * np.sin(omega * t)) * np.sin(omega * t) \
+                    - self.l2 * A_2**2 * omega**2 * np.sin(omega * t)**2 * np.cos(A_2 * np.cos(omega * t)) \
+                    + self.l2 * A_2 * omega**2 * np.sin(A_2 * np.cos(omega * t)) * np.cos(omega * t)
+        
+        yd_ddot =   - self.l1 * A_1**2 * omega**2 * np.sin(A_1 * np.sin(omega * t)) * np.cos(omega * t)**2 \
+                    - self.l1 * A_1 * omega**2 * np.cos(A_1 * np.sin(omega * t)) * np.sin(omega * t) \
+                    - self.l2 * A_2**2 * omega**2 * np.cos(omega * t)**2 * np.cos(A_2 * np.cos(omega * t)) \
+                    - self.l2 * A_2 * omega**2 * np.cos(A_2 * np.cos(omega * t)) * np.sin(omega * t)
 
         V_n = - xd_dot*np.sin(self.alpha2) + yd_dot*np.cos(self.alpha2) + V_c*np.sin(self.alpha2)
         V_m = xd_dot*np.cos(self.alpha2) + yd_dot*np.sin(self.alpha2) - V_c*np.cos(self.alpha2)
+
+        V_n_dot = - xd_ddot * np.sin(self.alpha2) \
+          - xd_dot * alpha2_dot * np.cos(self.alpha2) \
+          + yd_ddot * np.cos(self.alpha2) \
+          - yd_dot * alpha2_dot * np.sin(self.alpha2) \
+          + V_c * alpha2_dot * np.cos(self.alpha2)  # V_c is constant
 
         V_vect = np.array([V_n, V_m])
         m_hat = np.array([np.cos(self.alpha2), np.sin(self.alpha2)])
         n_hat = np.array([-np.sin(self.alpha2), np.cos(self.alpha2)])
 
-        m_i = 0.5 * np.pi * 1000 * 0.01 * 0.01
-        F_rf_d = -0.5 * m_i * V_n**2 * m_hat + m_i * V_n * V_m * n_hat - m_i * self.L * xd_ddot * n_hat
+        m_i = 0.5 * np.pi * rho_w * self.d**2
+        F_rf_d = -0.5 * m_i * V_n**2 * m_hat + m_i * V_n * V_m * n_hat - m_i * self.L * V_n_dot * n_hat
 
         del_transform = np.array([[np.cos(self.delta), -np.sin(self.delta)], 
                           [np.sin(self.delta), np.cos(self.delta)]])
@@ -145,7 +160,7 @@ class Fish:
 
         states = [self.u, self.v, self.r]
         
-        ODE_sol = solve_ivp(ode_system, [0, t], states, t_eval=[t])
+        ODE_sol = solve_ivp(ode_system, [t - dt, t], states, t_eval=[t])
         
         states = ODE_sol.y[:,-1]
 
@@ -164,7 +179,7 @@ class Fish:
 
 
 
-        data_logger(t, F, self.u)
+        data_logger(t, F)
         
 
 
@@ -232,7 +247,7 @@ _fish_I = 0.0047 # kg*m^2
 # initialize fish state variables
 _fish_x = 2 # meters
 _fish_y = 2 # meters
-_fish_psi = 0 # radians anlge of fish wrt x-axis
+_fish_psi = 0 # np.pi/2 # radians anlge of fish wrt x-axis
 _fish_delta = 0 # radians angle of fish tail (l0) wrt fish body
 _fish_alpha1 = 0 # radians angle between l0 and l1
 _fish_alpha2 = 0 # radians angle between l0 and l2
@@ -259,11 +274,10 @@ s_x = 0.0025
 k_11 = 0.095
 k_22 = 0.83
 k_55 = 0.55
-k_F = 0.2
 
-D_v = 0.02
-D_u = 0.01
-D_r = 0.0001
+D_v = 0.3
+D_u = 0.0
+D_r = 0.1
 
 
 # initial condition
@@ -326,7 +340,7 @@ def init():
 # Update function for the animation
 def update(frame):
     # move to the right
-    roboticfish.move(np.pi/2, 0*np.pi/180, (frame + 1)*dt)
+    roboticfish.move(1, 0*np.pi/180, (frame + 1)*dt)
     
     # update the plot
     
@@ -338,7 +352,7 @@ def update(frame):
 dt = 0.1
 # Creating the animation
 
-anim = FuncAnimation(fig, update, init_func=init, frames=1000, interval=dt, blit=True, repeat=False)
+anim = FuncAnimation(fig, update, init_func=init, frames=300, interval=dt, blit=True, repeat=False)
 
 # To display the animation in a Jupyter notebook, use the following line:
 # from IPython.display import HTML
