@@ -12,11 +12,12 @@ from matplotlib.animation import FuncAnimation
 from scipy.integrate import solve_ivp
 import csv
 import datetime
+# from roboticfish import Fish
 
 
 
 class Fish:
-    def __init__(self, x, y, psi, delta, alpha1, alpha2, u = 0.0, v = 0, r = -0.01):
+    def __init__(self, x, y, psi, delta, alpha1, alpha2, u = 0.0, v = 0, r = -0.0):
         self.x = x
         self.y = y
         self.psi = psi
@@ -72,10 +73,10 @@ class Fish:
         l1_scaled = self.l1*scale
         l2_scaled = self.l2*scale
 
-        fish_body = Ellipse((self.x, self.y), d0_scaled, d_scaled, angle=self.psi*180/np.pi, color='red')
+        fish_body = Ellipse((self.x, self.y), 2*d0_scaled, 0.1, angle=self.psi*180/np.pi, color='red')
 
-        x0_scaled = self.x - 0.5*d0_scaled*np.cos(self.psi)
-        y0_scaled = self.y - 0.5*d0_scaled*np.sin(self.psi)
+        x0_scaled = self.x - d0_scaled*np.cos(self.psi)
+        y0_scaled = self.y - d0_scaled*np.sin(self.psi)
         x1_scaled = x0_scaled - l0_scaled*np.cos(self.psi + self.delta)
         y1_scaled = y0_scaled - l0_scaled*np.sin(self.psi + self.delta)
         x2_scaled = x1_scaled - l1_scaled*np.cos(self.psi + self.delta + self.alpha1)
@@ -104,35 +105,34 @@ class Fish:
             return states_dot
         
         self.delta = _del
-        A_1 = 0.1
-        A_2 = 0.1
+        A_1 = 0.33
+        A_2 = 0.45
     
         self.alpha1 = A_1*np.sin(omega*t)                       # omega is rad/sec
         self.alpha2 = A_2*np.sin(omega*t + np.pi/2)             # omega is rad/sec
 
-        alpha2_dot = A_2 * omega * np.cos(omega * t + np.pi / 2)  # The derivative of alpha2 with respect to time
         alpha1_dot = A_1 * omega * np.cos(omega * t)  # The derivative of alpha1 with respect to time
+        alpha2_dot = - A_2 * omega * np.sin(omega * t)  # The derivative of alpha2 with respect to time
+
+        alpha1_ddot = - A_1**2 * omega**2 * np.sin(omega * t)  # The second derivative of alpha1 with respect to time
+        alpha2_ddot = - A_2**2 * omega**2 * np.cos(omega * t)  # The second derivative of alpha2 with respect to time
 
         # quarter-chord point of the caudel fin in DSC frame
         xd = self.l1*np.cos(self.alpha1) + self.l2*np.cos(self.alpha2)              # alpha1 and alpha2 are in radians
         yd = self.l1*np.sin(self.alpha1) + self.l2*np.sin(self.alpha2)              # alpha1 and alpha2 are in radians
 
-        xd_dot = -self.l1*np.sin(self.alpha1)*A_1*np.cos(omega*t)*omega - self.l2*np.sin(self.alpha2)*A_2*np.cos(omega*t + np.pi/2)*omega   # xd_dot = d(xd)/dt in m/s
-        yd_dot = self.l1*np.cos(self.alpha1)*A_1*np.cos(omega*t)*omega + self.l2*np.cos(self.alpha2)*A_2*np.cos(omega*t + np.pi/2)*omega    # yd_dot = d(yd)/dt in m/s
+        xd_dot = -self.l1*np.sin(self.alpha1)*alpha1_dot - self.l2*np.sin(self.alpha2)*alpha2_dot   # xd_dot = d(xd)/dt in m/s
+        yd_dot = self.l1*np.cos(self.alpha1)*alpha1_dot + self.l2*np.cos(self.alpha2)*alpha2_dot    # yd_dot = d(yd)/dt in m/s
 
-        xd_ddot =   - self.l1 * A_1**2 * omega**2 * np.cos(A_1 * np.sin(omega * t)) * np.cos(omega * t)**2 \
-                    + self.l1 * A_1 * omega**2 * np.sin(A_1 * np.sin(omega * t)) * np.sin(omega * t) \
-                    - self.l2 * A_2**2 * omega**2 * np.sin(omega * t)**2 * np.cos(A_2 * np.cos(omega * t)) \
-                    + self.l2 * A_2 * omega**2 * np.sin(A_2 * np.cos(omega * t)) * np.cos(omega * t)
+        xd_ddot =   - self.l1 * (np.sin(self.alpha1) * alpha1_ddot + alpha1_dot**2 * np.cos(self.alpha1)) \
+                    - self.l2 * (np.sin(self.alpha2) * alpha2_ddot + alpha2_dot**2 * np.cos(self.alpha2))
         
-        yd_ddot =   - self.l1 * A_1**2 * omega**2 * np.sin(A_1 * np.sin(omega * t)) * np.cos(omega * t)**2 \
-                    - self.l1 * A_1 * omega**2 * np.cos(A_1 * np.sin(omega * t)) * np.sin(omega * t) \
-                    - self.l2 * A_2**2 * omega**2 * np.cos(omega * t)**2 * np.cos(A_2 * np.cos(omega * t)) \
-                    - self.l2 * A_2 * omega**2 * np.cos(A_2 * np.cos(omega * t)) * np.sin(omega * t)
+        yd_ddot =   self.l1 * (np.cos(self.alpha1) * alpha1_ddot - alpha1_dot**2 * np.sin(self.alpha1)) \
+                    + self.l2 * (np.cos(self.alpha2) * alpha2_ddot - alpha2_dot**2 * np.sin(self.alpha2))
 
         V_n = - xd_dot*np.sin(self.alpha2) + yd_dot*np.cos(self.alpha2) + V_c*np.sin(self.alpha2)
         V_m = xd_dot*np.cos(self.alpha2) + yd_dot*np.sin(self.alpha2) - V_c*np.cos(self.alpha2)
-
+ 
         V_n_dot = - xd_ddot * np.sin(self.alpha2) \
           - xd_dot * alpha2_dot * np.cos(self.alpha2) \
           + yd_ddot * np.cos(self.alpha2) \
@@ -143,17 +143,17 @@ class Fish:
         m_hat = np.array([np.cos(self.alpha2), np.sin(self.alpha2)])
         n_hat = np.array([-np.sin(self.alpha2), np.cos(self.alpha2)])
 
-        m_i = 0.5 * np.pi * rho_w * self.d**2
-        F_rf_d = - 0.5 * m_i * V_n**2 * m_hat + m_i * V_n * V_m * n_hat - m_i * self.L * V_n_dot * n_hat
+        m_i = 0.5 * np.pi * rho_w * self.d**2     
+        F_rf_d =  0.5 * m_i * V_n**2 * m_hat - m_i * V_n * V_m * n_hat + m_i * self.L * V_n_dot * n_hat
 
-        del_transform = 0.2* np.array([[np.cos(self.delta), -np.sin(self.delta)], 
+        del_transform = 0.2 * np.array([[np.cos(self.delta), -np.sin(self.delta)], 
                           [np.sin(self.delta), np.cos(self.delta)]])
         
         F = np.dot(del_transform, F_rf_d) # in Wenyu's paper defined as T_x
         F_x = F[0]
         F_y = F[1]
 
-        F_theta = (self.d0 + (self.l0 + self.l1 + self.l2) * np.cos(self.delta))*F_y - (self.l0 + self.l1 + self.l2) * np.sin(self.delta)*F_x
+        F_theta = + (self.d0 + (self.l0 + self.l1 + self.l2) * np.cos(self.delta))*F_y - (self.l0 + self.l1 + self.l2) * np.sin(self.delta)*F_x
         
         # append F_theta in the F array
         F = np.append(F, F_theta)
@@ -179,7 +179,7 @@ class Fish:
 
 
 
-        data_logger(t, F, self.u)
+        data_logger(t, F, self.u, self.v, self.r)
         
 
 
@@ -192,17 +192,21 @@ def data_logger(_t,_F, u = 0, v = 0, r = 0): # function to update the data in th
     Fy_logged.append(_Fy)
     Ft_logged.append(_Ft)
     timestamps.append(_t)
-    u_logged.append(u)
-    v_logged.append(v)
-    r_logged.append(r)
+    
+    if u != 0:
+        u_logged.append(u)
+        line_u.set_data(timestamps, u_logged)
+    if v != 0:
+        v_logged.append(v)
+        line_v.set_data(timestamps, v_logged)
+    if r != 0:
+        r_logged.append(r)
+        line_r.set_data(timestamps, r_logged)
 
     # Update data for each line
     line_fx.set_data(timestamps, Fx_logged)
     line_fy.set_data(timestamps, Fy_logged)
     line_ft.set_data(timestamps, Ft_logged)
-    line_u.set_data(timestamps, u_logged)
-    line_v.set_data(timestamps, v_logged)
-    line_r.set_data(timestamps, r_logged)
 
     # Adjust the plot range dynamically
     ax_plots.relim()
@@ -225,7 +229,6 @@ def data_logger(_t,_F, u = 0, v = 0, r = 0): # function to update the data in th
 
 
 
-
 # initiaze constants
 _pool_width = 5 # meters
 _pool_length = 10 # meters
@@ -233,12 +236,29 @@ _pool_depth = 2 # meters
 _water_filled_frac = 0.9 # fraction of pool filled with water
 _water_filled_depth = _pool_depth * _water_filled_frac # meters
 
+# simulation parameters
+_sim_end_time = 20 # seconds
+_sim_frame_rate = 10 # frames per revolution
+_sim_omega = 3*2*np.pi # rad/s
+_sim_rps = _sim_omega/(2*np.pi) # revolutions per second
+
+_sim_cycles = _sim_end_time * _sim_rps # total number of cycles
+_sim_frames = _sim_frame_rate * _sim_cycles # frames per second
+_sim_time_step = 1/(_sim_frame_rate*_sim_rps) # seconds
+
+dt = _sim_time_step
+
+print('Simulation will run for', _sim_end_time, 'seconds with', _sim_frame_rate, 'frames per revolution at', _sim_omega,\
+       'rad/s', 'having a total of', _sim_cycles, 'cycles', 'and a time step of', dt, 'seconds')
+print('A total of ', _sim_frames, 'frames will be generated')
+
+
 
 # initialize fish parameters
 _fish_l0 = 0.042 # meters
 _fish_l1 = 0.058 # meters
 _fish_l2 = 0.044 # meters
-_fish_L = 0.04 # meters
+_fish_L = 0.04 # meters             # as per thesis L is the length of the fish body and d_0 is half of the fish body before the tail starts
 _fish_d0 = 0.04 # meters
 _fish_d = 0.08 # meters
 _fish_m = 0.9 # kg
@@ -247,7 +267,7 @@ _fish_I = 0.0047 # kg*m^2
 # initialize fish state variables
 _fish_x = 2 # meters
 _fish_y = 2 # meters
-_fish_psi = 0 # np.pi/2 # radians anlge of fish wrt x-axis
+_fish_psi = 0 #np.pi # radians anlge of fish wrt x-axis
 _fish_delta = 0 # radians angle of fish tail (l0) wrt fish body
 _fish_alpha1 = 0 # radians angle between l0 and l1
 _fish_alpha2 = 0 # radians angle between l0 and l2
@@ -265,19 +285,19 @@ program_start_time = datetime.datetime.now()
 
 # second order system parameters
 rho_w = 1025
-c_x = 0.39
-c_y = 2.2
-c_r = 0.0055
+c_x = 0.49
+c_y = 22.5
+c_r = 0.0039
 V_c = 0.08
 s_y = 0.02
 s_x = 0.0025
-k_11 = 0.095
-k_22 = 0.83
+k_11 = 0.83
+k_22 = 0.096
 k_55 = 0.55
 
-D_v = 0.5
-D_u = 0.0
-D_r = 0.1
+D_v = 0.0196
+D_u = 0.45
+D_r = 0.16
 
 
 # initial condition
@@ -308,19 +328,23 @@ ax.grid(True)
 fig_plots, ax_plots = plt.subplots()
 ax2_plots = ax_plots.twinx()
 
+_force_plot_weight = 0.2
 # Set up the plot style
 ax_plots.set_xlabel('Time (s)')
 ax_plots.set_ylabel('Force (N)')
 ax_plots.set_title('Force vs Time')
-line_fx, = ax_plots.plot(timestamps, Fx_logged, label='Fx', color='red')
-line_fy, = ax_plots.plot(timestamps, Fy_logged, label='Fy', color='green')
-line_ft, = ax_plots.plot(timestamps, Ft_logged, label='Ft', color='blue')
-line_u, = ax_plots.plot(timestamps, u_logged, label='u', color='black')
+line_fx, = ax_plots.plot(timestamps, Fx_logged, label='Fx', color='red', linewidth=_force_plot_weight)
+line_fy, = ax_plots.plot(timestamps, Fy_logged, label='Fy', color='green', linewidth=_force_plot_weight)
+line_ft, = ax_plots.plot(timestamps, Ft_logged, label='Ft', color='blue', linewidth=_force_plot_weight)
+line_u, = ax2_plots.plot(timestamps, u_logged, label='u', color='black')
 line_v, = ax2_plots.plot(timestamps, v_logged, label='v', color='orange')
-line_r, = ax2_plots.plot(timestamps, r_logged, label='r', color='purple')
+line_r, = ax2_plots.plot(timestamps, r_logged, label='r', color='purple', linewidth = 0.8)
 ax_plots.grid(True)
-ax_plots.legend()
-ax2_plots.legend()
+# add legent on top right
+ax_plots.legend(loc='upper right')
+ax2_plots.legend(loc='upper left')
+ax2_plots.set_ylabel('Velocity (m/s) / Angular Velocity (rad/s)')
+ax2_plots.grid(True)
 ax_plots.autoscale_view(True,True,True)
 # fit axis 2
 ax2_plots.relim()
@@ -329,7 +353,7 @@ ax2_plots.relim()
 
 # Creating the fish object
 roboticfish = Fish(_fish_x, _fish_y, _fish_psi, _fish_delta, _fish_alpha1, _fish_alpha2)
-roboticfish.set_shape(_fish_l0, _fish_l1, _fish_l2, _fish_d0*1.5, 0.015)
+roboticfish.set_shape(_fish_l0, _fish_l1, _fish_l2, _fish_d0, _fish_d)
 
 # Initialization function for the animation
 def init():
@@ -340,7 +364,8 @@ def init():
 # Update function for the animation
 def update(frame):
     # move to the right
-    roboticfish.move(1, 0*np.pi/180, (frame + 1)*dt)
+
+    roboticfish.move(_sim_omega, 10*np.pi/180, (frame + 1)*dt)
     
     # update the plot
     
@@ -349,10 +374,10 @@ def update(frame):
 
 
 # Time step for the simulation
-dt = 0.1
+
 # Creating the animation
 
-anim = FuncAnimation(fig, update, init_func=init, frames=3000, interval=dt, blit=True, repeat=False)
+anim = FuncAnimation(fig, update, init_func=init, frames=int(_sim_frames), interval=dt, blit=True, repeat=False)
 
 # To display the animation in a Jupyter notebook, use the following line:
 # from IPython.display import HTML
