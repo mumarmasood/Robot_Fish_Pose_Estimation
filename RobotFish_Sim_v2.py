@@ -1,7 +1,7 @@
 # Simulates a 2D fish with a non-linear dynamics model solving the differential equations of motion numerically
 # author: Umar Masood
 # date: 2024-04-01
-# version: 1.0
+# version: 2.0
 # Bio-inspired Robotics & Control Lab (BRCL) @ UH
 
 
@@ -153,7 +153,7 @@ class Fish:
         F_x = F[0]
         F_y = F[1]
 
-        F_theta = + (self.d0 + (self.l0 + self.l1 + self.l2) * np.cos(self.delta))*F_y - (self.l0 + self.l1 + self.l2) * np.sin(self.delta)*F_x
+        F_theta = - (self.d0 + (self.l0 + self.l1 + self.l2) * np.cos(self.delta))*F_y + (self.l0 + self.l1 + self.l2) * np.sin(self.delta)*F_x
         
         # append F_theta in the F array
         F = np.append(F, F_theta)
@@ -237,7 +237,7 @@ _water_filled_frac = 0.9 # fraction of pool filled with water
 _water_filled_depth = _pool_depth * _water_filled_frac # meters
 
 # simulation parameters
-_sim_end_time = 20 # seconds
+_sim_end_time = 2 # seconds
 _sim_frame_rate = 10 # frames per revolution
 _sim_omega = 3*2*np.pi # rad/s
 _sim_rps = _sim_omega/(2*np.pi) # revolutions per second
@@ -365,7 +365,7 @@ def init():
 def update(frame):
     # move to the right
 
-    roboticfish.move(_sim_omega, 10*np.pi/180, (frame + 1)*dt)
+    roboticfish.move(_sim_omega, 20*np.pi/180, (frame + 1)*dt)
     
     # update the plot
     

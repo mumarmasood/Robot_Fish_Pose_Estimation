@@ -6,7 +6,7 @@ import numpy as np
 import scipy.signal
 
 # define the file name and path
-file_name = '2D_Pose_Data_20240319_155654_angle_10.0_speed_100.0.csv'
+file_name = '2D_Pose_Data_20240319_155306_angle_-20.0_speed_90.0.csv'
 file_path = 'Data/' + file_name
 # TRY THESE FILES
 #'Data/2D_Pose_Data_20240319_155306_angle_-20.0_speed_90.0.csv'
@@ -39,17 +39,17 @@ x_med_avg_filt = np.convolve(x_med_filt, np.ones(30)/30, mode='valid')
 y_med_avg_filt = np.convolve(y_med_filt, np.ones(30)/30, mode='valid')
 
 
-# Plot the x and y position
-plt.figure(1)
-plt.plot(x, y, color='blue', linewidth=2)
-# change the font style to jsmath-cmsy10
-plt.rc('text', usetex=True)
-plt.rc('font', family='serif')
-plt.xlabel('X position (m)')
-plt.ylabel('Y position (m)')
-plt.title('2D Pose')
-plt.grid(True)
-plt.show()
+# # Plot the x and y position
+# plt.figure(1)
+# plt.plot(x, y, color='blue', linewidth=2)
+# # change the font style to jsmath-cmsy10
+# plt.rc('text', usetex=True)
+# plt.rc('font', family='serif')
+# plt.xlabel('X position (m)')
+# plt.ylabel('Y position (m)')
+# plt.title('2D Pose')
+# plt.grid(True)
+# plt.show()
 
 # Plot the orientation
 plt.figure(2)
